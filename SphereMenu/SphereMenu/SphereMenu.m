@@ -6,36 +6,48 @@
 //  Copyright (c) 2014年 TU YOU. All rights reserved.
 //
 
+// 版权属于原作者
+// http://code4app.com (cn) http://code4app.net (en)
+// 发布代码于最专业的源码分享网站: Code4App.com
+
 #import "SphereMenu.h"
 
-static const int kItemInitTag = 1001;
 static const CGFloat kAngleOffset = M_PI_2 / 2;
 static const CGFloat kSphereLength = 80;
 static const float kSphereDamping = 0.3;
 
 @interface SphereMenu () <UICollisionBehaviorDelegate>
 
-@property (nonatomic, assign) NSUInteger count ;
-@property (nonatomic, strong) UIImageView *start;
-@property (nonatomic, strong) NSArray *images;
-@property (nonatomic, strong) NSMutableArray *items;
-@property (nonatomic, strong) NSMutableArray *positions;
+@property (assign, nonatomic) NSUInteger count ;
+@property (strong, nonatomic) UIImageView *start;
+@property (strong, nonatomic) NSArray *images;
+@property (strong, nonatomic) NSMutableArray *items;
+@property (strong, nonatomic) NSMutableArray *positions;
 
 // animator and behaviors
-@property (nonatomic, strong) UIDynamicAnimator *animator;
-@property (nonatomic, strong) UICollisionBehavior *collision;
-@property (nonatomic, strong) UIDynamicItemBehavior *itemBehavior;
-@property (nonatomic, strong) NSMutableArray *snaps;
+@property (strong, nonatomic) UIDynamicAnimator *animator;
+@property (strong, nonatomic) UICollisionBehavior *collision;
+@property (strong, nonatomic) UIDynamicItemBehavior *itemBehavior;
+@property (strong, nonatomic) NSMutableArray *snaps;
+@property (strong, nonatomic) NSMutableArray *taps;
 
-@property (nonatomic, strong) UITapGestureRecognizer *tapOnStart;
+@property (strong, nonatomic) UITapGestureRecognizer *tapOnStart;
 
-@property (nonatomic, strong) id<UIDynamicItem> bumper;
-@property (nonatomic, assign) BOOL expanded;
+@property (strong, nonatomic) id<UIDynamicItem> bumper;
+@property (assign, nonatomic) BOOL expanded;
 
 @end
 
 
 @implementation SphereMenu
+
+-(NSMutableArray *)taps
+{
+    if (!_taps) {
+        _taps = [NSMutableArray new];
+    }
+    return _taps;
+}
 
 - (instancetype)initWithStartPoint:(CGPoint)startPoint startImage:(UIImage *)startImage submenuImages:(NSArray *)images
 {
@@ -44,18 +56,14 @@ static const float kSphereDamping = 0.3;
         self.bounds = CGRectMake(0, 0, startImage.size.width, startImage.size.height);
         self.center = startPoint;
         
-        _angle = kAngleOffset;
-        _sphereLength = kSphereLength;
-        _sphereDamping = kSphereDamping;
-        
-        _images = images;
-        _count = self.images.count;
-        _start = [[UIImageView alloc] initWithImage:startImage];
-        _start.userInteractionEnabled = YES;
-        _tapOnStart = [[UITapGestureRecognizer alloc] initWithTarget:self
+        self.images = images;
+        self.count = self.images.count;
+        self.start = [[UIImageView alloc] initWithImage:startImage];
+        self.start.userInteractionEnabled = YES;
+        self.tapOnStart = [[UITapGestureRecognizer alloc] initWithTarget:self
                                                                   action:@selector(startTapped:)];
-        [_start addGestureRecognizer:_tapOnStart];
-        [self addSubview:_start];
+        [self.start addGestureRecognizer:self.tapOnStart];
+        [self addSubview:self.start];
     }
     return self;
 }
@@ -69,7 +77,6 @@ static const float kSphereDamping = 0.3;
     // setup the items
     for (int i = 0; i < self.count; i++) {
         UIImageView *item = [[UIImageView alloc] initWithImage:self.images[i]];
-        item.tag = kItemInitTag + i;
         item.userInteractionEnabled = YES;
         [self.superview addSubview:item];
         
@@ -79,6 +86,7 @@ static const float kSphereDamping = 0.3;
         
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)];
         [item addGestureRecognizer:tap];
+        [self.taps addObject:tap];
         
         UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panned:)];
         [item addGestureRecognizer:pan];
@@ -97,7 +105,7 @@ static const float kSphereDamping = 0.3;
     
     for (int i = 0; i < self.count; i++) {
         UISnapBehavior *snap = [[UISnapBehavior alloc] initWithItem:self.items[i] snapToPoint:self.center];
-        snap.damping = self.sphereDamping;
+        snap.damping = kSphereDamping;
         [self.snaps addObject:snap];
     }
     
@@ -127,23 +135,23 @@ static const float kSphereDamping = 0.3;
 
 - (CGPoint)centerForSphereAtIndex:(int)index
 {
-    CGFloat firstAngle = M_PI + (M_PI_2 - self.angle) + index * self.angle;
+    CGFloat firstAngle = M_PI + (M_PI_2 - kAngleOffset) + index * kAngleOffset;
     CGPoint startPoint = self.center;
-    CGFloat x = startPoint.x + cos(firstAngle) * self.sphereLength;
-    CGFloat y = startPoint.y + sin(firstAngle) * self.sphereLength;
+    CGFloat x = startPoint.x + cos(firstAngle) * kSphereLength;
+    CGFloat y = startPoint.y + sin(firstAngle) * kSphereLength;
     CGPoint position = CGPointMake(x, y);
     return position;
 }
 
 - (void)tapped:(UITapGestureRecognizer *)gesture
 {
+    NSUInteger index = [self.taps indexOfObject:gesture];
     if ([self.delegate respondsToSelector:@selector(sphereDidSelected:)]) {
-        int tag = (int)gesture.view.tag;
-        tag -= kItemInitTag;
-        [self.delegate sphereDidSelected:tag];
+        [self.delegate sphereDidSelected:(int)index];
     }
     
     [self shrinkSubmenu];
+    self.expanded = !self.expanded;
 }
 
 - (void)startTapped:(UITapGestureRecognizer *)gesture
@@ -157,26 +165,27 @@ static const float kSphereDamping = 0.3;
     } else {
         [self expandSubmenu];
     }
+    
+    self.expanded = !self.expanded;
 }
 
 - (void)expandSubmenu
 {
+    self.positions = [NSMutableArray new];
+    for (int i = 0; i < self.count; i++) {
+        CGPoint position = [self centerForSphereAtIndex:i];
+        [self.positions addObject:[NSValue valueWithCGPoint:position]];
+    }
     for (int i = 0; i < self.count; i++) {
         [self snapToPostionsWithIndex:i];
     }
-    
-    self.expanded = YES;
 }
 
 - (void)shrinkSubmenu
 {
-    [self.animator removeBehavior:self.collision];
-    
     for (int i = 0; i < self.count; i++) {
         [self snapToStartWithIndex:i];
     }
-    
-    self.expanded = NO;
 }
 
 - (void)panned:(UIPanGestureRecognizer *)gesture
@@ -221,7 +230,7 @@ static const float kSphereDamping = 0.3;
 - (void)snapToStartWithIndex:(NSUInteger)index
 {
     UISnapBehavior *snap = [[UISnapBehavior alloc] initWithItem:self.items[index] snapToPoint:self.center];
-    snap.damping = self.sphereDamping;
+    snap.damping = kSphereDamping;
     UISnapBehavior *snapToRemove = self.snaps[index];
     self.snaps[index] = snap;
     [self.animator removeBehavior:snapToRemove];
@@ -233,7 +242,7 @@ static const float kSphereDamping = 0.3;
     id positionValue = self.positions[index];
     CGPoint position = [positionValue CGPointValue];
     UISnapBehavior *snap = [[UISnapBehavior alloc] initWithItem:self.items[index] snapToPoint:position];
-    snap.damping = self.sphereDamping;
+    snap.damping = kSphereDamping;
     UISnapBehavior *snapToRemove = self.snaps[index];
     self.snaps[index] = snap;
     [self.animator removeBehavior:snapToRemove];
